@@ -1,0 +1,27 @@
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.format]
+quote-style = "single"
+
+[project]
+name = "LLM-text-autocomplection"
+version = "0.1.0"
+description = "Create and compare LSTM and Transformer models for task autocomplection"
+authors = [
+    {name = "Demkov Boris", email = "demkov.boris@yandex.ru"},
+]
+
+requires-python = "==3.11.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "ruff>=0.3.5",
+    "pre-commit>=3.7.0",
+]
