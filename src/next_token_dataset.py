@@ -3,85 +3,28 @@ import pandas as pd
 import os
 from pathlib import Path
 from torch.utils.data import Dataset, DataLoader
-from collections import Counter
-from torch.utils.data import random_split
+from transformers import BertTokenizerFast
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+PART_TARGET = 0.25
 DEBUG = True
 
-def create_train_val_test_splits(tokenized_tweets, seq_length=140, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, seed=42):
-    """Create train, validation and test splits with consistent vocabulary
-
-    Args:
-        tokenized_tweets (Pandas Series): full dataset of tweets
-        seq_length (int, optional): limit for length of tweet, default=140.
-        train_ratio (float, optional): part for train. Defaults to 0.8.
-        val_ratio (float, optional): part for validation. Defaults to 0.1.
-        test_ratio (float, optional): part for test. Defaults to 0.1.
-        seed (int, optional): random seed val. Defaults to 42.
-
-    Returns:
-        NextTokenDataset, NextTokenDataset, NextTokenDataset, dict: train, val, test datasets and full vocab
-    """
-    # Set random seed for reproducibility
-    torch.manual_seed(seed)
-    
-    # trim data for debug mode
-    if DEBUG:
-        tokenized_tweets = tokenized_tweets.sample(n=100)
-
-    # Create full dataset first to get consistent vocabulary
-    full_dataset = NextTokenDataset(tokenized_tweets, seq_length=seq_length)
-    vocab = full_dataset.get_vocab()
-    
-    # Calculate split sizes
-    total_size = len(full_dataset)
-    train_size = int(train_ratio * total_size)
-    val_size = int(val_ratio * total_size)
-    test_size = total_size - train_size - val_size
-    
-    # Split the dataset
-    train_dataset, val_dataset, test_dataset = random_split(
-        full_dataset, [train_size, val_size, test_size]
-    )
-    
-    return train_dataset, val_dataset, test_dataset, vocab
 
 class NextTokenDataset(Dataset):
-    def __init__(self, tokenized_tweets, seq_length=140, pad_to_seq_length=True):
+    def __init__(self, texts, tokenizer, seq_length=140):
         """
         Args:
-            tokenized_tweets: List of tokenized tweets
+            texts: input lisf of text
+            tokenizer: List of tokenized tweets
             seq_length: Length of input sequence
         """
-        self.tokenized_tweets = tokenized_tweets
+        self.texts = texts
+        self.tokenizer = tokenizer
         self.seq_length = seq_length
-        self.pad_to_seq_length = pad_to_seq_length
-        
-        # Build vocabulary
-        self.vocab = self._build_vocab()
         
         # Create sequences
         self.sequences, self.targets, self.masks = self._create_sequences()
-    
-    def _build_vocab(self):
-        """Build vocabulary from all tokens"""
-        counter = Counter()
-        for tweet in self.tokenized_tweets:
-            counter.update(tweet)
-        
-        vocab = {
-            '<PAD>': 0,
-            '<UNK>': 1,
-            '<SOS>': 2,
-            '<EOS>': 3
-        }
-        
-        for word, count in counter.items():
-            if word not in vocab:
-                vocab[word] = len(vocab)
-        
-        return vocab
     
     def _create_sequences(self):
         """Create input sequences and target tokens"""
@@ -89,33 +32,33 @@ class NextTokenDataset(Dataset):
         targets = []
         masks = []
         
-        for tweet in self.tokenized_tweets:
+        for tweet in self.texts:
             if len(tweet) <= 1:
                 continue
-                
-            # Convert tokens to indices
-            tweet_indices = [self.vocab.get(token, self.vocab['<UNK>']) for token in tweet]
+
+            encoded = self.tokenizer(
+                tweet,
+                max_length=self.seq_length,
+                truncation=True
+            )
             
+            input_ids = encoded['input_ids']
 
             # Create sliding window sequences
-            len_seq = min(len(tweet_indices), self.seq_length)
+            len_seq = min(len(input_ids), self.seq_length)
             for i in range(0, len_seq):
-                seq = tweet_indices[0:i]
-                target = tweet_indices[i:i + 1]
                 
+                seq = input_ids[:i]
+                target = input_ids[i]
+                mask = [1] * len(seq)
+                
+                # Add padding
+                padded_seq = seq + [0] * (self.seq_length - len(seq))
+                padded_mask = mask + [0] * (self.seq_length - len(mask))
+                
+                sequences.append(padded_seq)
                 targets.append(target)
-
-                if self.pad_to_seq_length:
-                    # Pad sequence to seq_length
-                    padded_seq = seq + [self.vocab['<PAD>']] * (self.seq_length - len(seq))
-                    
-                    # Create attention mask (1 for real tokens, 0 for padding)
-                    mask = [1] * len(seq) + [0] * (self.seq_length - len(seq))
-
-                    sequences.append(padded_seq)
-                    masks.append(mask)
-                else:
-                    sequences.append(seq)
+                masks.append(padded_mask)
                     
         
         return sequences, targets, masks
@@ -129,21 +72,84 @@ class NextTokenDataset(Dataset):
             'target': torch.tensor(self.targets[idx], dtype=torch.long),
             'masks': torch.tensor(self.masks[idx], dtype=torch.long)
         }
+
+class ValTokenDataset(Dataset):
+    def __init__(self, texts, tokenizer, seq_length=140):
+        """
+        Args:
+            texts: input lisf of text
+            tokenizer: List of tokenized tweets
+            seq_length: Length of input sequence
+        """
+        self.texts = texts
+        self.tokenizer = tokenizer
+        self.seq_length = seq_length
+        
+        # Create sequences
+        self.sequences, self.targets, self.masks = self._create_sequences()
     
-    def get_vocab_size(self):
-        return len(self.vocab)
+    def _create_sequences(self):
+        """Create input sequences and target tokens"""
+        sequences = []
+        targets = []
+        masks = []
+        
+        for tweet in self.texts:
+            if len(tweet) <= 1:
+                continue
+
+            encoded = self.tokenizer(
+                tweet,
+                max_length=self.seq_length,
+                truncation=True
+            )
+            
+            input_ids = encoded['input_ids']
+            n_target = int(len(input_ids) * PART_TARGET)
+            if n_target < 1:
+                n_target = 1
+            
+            seq = input_ids[:-n_target]
+            target = input_ids[-n_target:]
+            mask = [1] * len(seq)
+
+            # Add padding
+            padded_seq = seq + [0] * (self.seq_length - len(seq))
+            padded_target = target + [0] * (self.seq_length - len(target))
+            padded_mask = mask + [0] * (self.seq_length - len(mask))
+                
+            sequences.append(padded_seq)
+            targets.append(padded_target)
+            masks.append(padded_mask)
+        
+        return sequences, targets, masks
     
-    def get_vocab(self):
-        return self.vocab
+    def __len__(self):
+        return len(self.sequences)
+    
+    def __getitem__(self, idx):
+        return {
+            'input_ids': torch.tensor(self.sequences[idx], dtype=torch.long),
+            'target': torch.tensor(self.targets[idx], dtype=torch.long),
+            'masks': torch.tensor(self.masks[idx], dtype=torch.long)
+        }
+    
     
 if __name__ == '__main__':
     # test run
-    
-    df_tweets = pd.read_csv(os.path.join(BASE_DIR, 'data', 'tokens_tweets.csv'))
+    df_tweets = pd.read_csv(os.path.join(BASE_DIR, 'data', 'cleaned_tweets.csv'))
     # for test aim - only 100 samples
     df_tweets = df_tweets.sample(n=100).reset_index(drop=True)
     
-    test_dataset = NextTokenDataset(df_tweets['tokens'])
+    tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+
+    test_dataset = NextTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
+    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=True)
+    first_batch = next(iter(test_loader))
+    print(f'print first batch, batch_size = {first_batch["input_ids"].shape}')
+    print(first_batch)
+    print('Test ValTokenDataset')
+    test_dataset = ValTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
     test_loader = DataLoader(test_dataset, batch_size=4, shuffle=True)
     first_batch = next(iter(test_loader))
     print(f'print first batch, batch_size = {first_batch["input_ids"].shape}')

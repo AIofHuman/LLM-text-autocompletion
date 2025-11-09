@@ -1,10 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
-import numpy as np
-from tqdm import tqdm
-import matplotlib.pyplot as plt
+
 
 class LSTMAutocomplete(nn.Module):
     def __init__(self, vocab_size, embedding_dim=128, hidden_dim=256, num_layers=2, dropout=0.3):
@@ -85,8 +81,31 @@ class LSTMAutocomplete(nn.Module):
         
         return output, hidden
     
-    def init_hidden(self, batch_size, device):
-        """Initialize hidden state"""
-        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).to(device)
-        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).to(device)
-        return (h0, c0)
+    def generate_completion(self, tokenizer, input_sequence, max_target_length):
+        """Generate list of tokens idx until <EOS> or max_target_length
+        Args:
+            tokinazer (Object): tokenizer which use for train modeld
+            input_sequence (list): list of tokens idx for predictions
+            max_target_length (int): list of tokens idx - prediction for autocompletion
+        Returns:
+            list: text completion
+        """
+        result = []
+        if len(input_sequence) == 0:
+            return result
+        
+        with torch.no_grad():
+            while pred_token != "EOS" or len(input_sequence) < max_target_length:           
+                output, _ = self.forward(input_sequence)
+                pred = torch.argmax(output, dim=1)
+                pred_token = tokenizer.convert_ids_to_tokens(pred)
+                result.append(pred_token)
+                input_sequence.append(pred)
+        return result
+
+    
+    # def init_hidden(self, batch_size, device):
+    #     """Initialize hidden state"""
+    #     h0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).to(device)
+    #     c0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).to(device)
+    #     return (h0, c0)
