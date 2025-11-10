@@ -42,7 +42,7 @@ def train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=1
             masks = batch['masks'].to(device)
             
             # Remove extra dimension from targets
-            targets = targets.squeeze()
+            # targets = targets.squeeze()
             
             # Forward pass
             optimizer.zero_grad()
@@ -82,3 +82,38 @@ def train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=1
         print(f'  Train Loss: {avg_train_loss:.4f}')
         print(f'  Val loss: {metrics["loss"]:.4f}, rouge-1: {metrics["rouge1"]:.4f}, val rouge2: {metrics["rouge2"]:.4f}')
         
+if __name__ == '__main__':
+
+    import pandas as pd
+    import os
+    from tqdm import tqdm
+    from pathlib import Path
+    import torch.optim as optim
+    from torch.utils.data import DataLoader
+    from transformers import BertTokenizerFast
+
+    from next_token_dataset import NextTokenDataset, ValTokenDataset
+    from LSTM import LSTMAutocomplete
+
+    BASE_DIR = Path().resolve()
+    MAX_LEN = 140
+    device = 'cpu'
+
+    # test run
+    df_tweets = pd.read_csv(os.path.join(BASE_DIR, 'LLM-text-autocompletion','data', 'cleaned_tweets.csv'))
+    # for test aim - only 100 samples
+    # df_tweets = df_tweets.sample(n=100, random_state=42).reset_index(drop=True)
+    # print(df_tweets.tail(10))
+    
+    tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+
+    train_dataset = NextTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
+    val_dataset = ValTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=True)
+    
+    model = LSTMAutocomplete(tokenizer.vocab_size)
+    
+    
+    train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=10, learning_rate=0.01, save_dir='models')
+    

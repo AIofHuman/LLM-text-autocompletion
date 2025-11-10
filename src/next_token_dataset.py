@@ -8,7 +8,7 @@ from transformers import BertTokenizerFast
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PART_TARGET = 0.25
-DEBUG = True
+DEBUG = False
 
 
 class NextTokenDataset(Dataset):
@@ -46,7 +46,7 @@ class NextTokenDataset(Dataset):
 
             # Create sliding window sequences
             len_seq = min(len(input_ids), self.seq_length)
-            for i in range(0, len_seq):
+            for i in range(1, len_seq-1):
                 
                 seq = input_ids[:i]
                 target = input_ids[i]
@@ -136,21 +136,22 @@ class ValTokenDataset(Dataset):
     
     
 if __name__ == '__main__':
+    pass
     # test run
-    df_tweets = pd.read_csv(os.path.join(BASE_DIR, 'data', 'cleaned_tweets.csv'))
-    # for test aim - only 100 samples
-    df_tweets = df_tweets.sample(n=100).reset_index(drop=True)
+    # df_tweets = pd.read_csv(os.path.join(BASE_DIR, 'data', 'cleaned_tweets.csv'))
+    # # for test aim - only 100 samples
+    # df_tweets = df_tweets.sample(n=100).reset_index(drop=True)
     
-    tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+    # tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
 
-    test_dataset = NextTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
-    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=True)
-    first_batch = next(iter(test_loader))
-    print(f'print first batch, batch_size = {first_batch["input_ids"].shape}')
-    print(first_batch)
-    print('Test ValTokenDataset')
-    test_dataset = ValTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
-    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=True)
-    first_batch = next(iter(test_loader))
-    print(f'print first batch, batch_size = {first_batch["input_ids"].shape}')
-    print(first_batch)
+    # test_dataset = NextTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
+    # test_loader = DataLoader(test_dataset, batch_size=4, shuffle=True)
+    # first_batch = next(iter(test_loader))
+    # print(f'print first batch, batch_size = {first_batch["input_ids"].shape}')
+    # print(first_batch)
+    # print('Test ValTokenDataset')
+    # test_dataset = ValTokenDataset(df_tweets['text'], tokenizer, seq_length=140)
+    # test_loader = DataLoader(test_dataset, batch_size=4, shuffle=True)
+    # first_batch = next(iter(test_loader))
+    # print(f'print first batch, batch_size = {first_batch["input_ids"].shape}')
+    # print(first_batch)
