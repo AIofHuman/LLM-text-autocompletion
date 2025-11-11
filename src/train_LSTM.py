@@ -100,10 +100,10 @@ def save_final_model(model, optimizer, tokenizer, final_train_loss, epoch):
     }
     
     # Save model
-    torch.save(checkpoint, os.path.join(BASE_DIR, MODEL_DIR,'final_model.pth'))
+    torch.save(checkpoint, os.path.join(MODEL_DIR,'final_model.pth'))
     
     # Save tokenizer
-    tokenizer.save_pretrained(os.path.join(BASE_DIR, MODEL_DIR,'tokenizer'))
+    tokenizer.save_pretrained(os.path.join(MODEL_DIR,'tokenizer'))
     
     print("Model and tokenizer saved!")
 
