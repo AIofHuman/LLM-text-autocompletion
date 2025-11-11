@@ -9,6 +9,12 @@ import pandas as pd
 import os
 from pathlib import Path
 from eval_metric import calc_metrics
+import os 
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_DIR = 'models'
+
 
 def train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=10, learning_rate=0.001, save_dir='models'):
     """Train the LSTM autocomplete model"""
@@ -69,7 +75,7 @@ def train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=1
         
         # Calculate training metrics
         avg_train_loss = epoch_train_loss / len(train_loader)
-        metrics = calc_metrics(model, val_loader, criterion, tokenizer, device)
+        metrics = calc_metrics(model, val_loader, tokenizer, device, criterion)
         
         # Update learning rate
         scheduler.step(avg_train_loss)
@@ -81,6 +87,27 @@ def train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=1
         print(f'Epoch {epoch+1}/{num_epochs}:')
         print(f'  Train Loss: {avg_train_loss:.4f}')
         print(f'  Val loss: {metrics["loss"]:.4f}, rouge-1: {metrics["rouge1"]:.4f}, val rouge2: {metrics["rouge2"]:.4f}')
+
+        save_final_model(model, optimizer, tokenizer, avg_train_loss, epoch)
+
+def save_final_model(model, optimizer, tokenizer, final_train_loss, epoch):
+    """Save the final model after training completes"""
+    checkpoint = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'train_loss': final_train_loss,
+    }
+    
+    # Save model
+    torch.save(checkpoint, os.path.join(BASE_DIR, MODEL_DIR,'final_model.pth'))
+    
+    # Save tokenizer
+    tokenizer.save_pretrained(os.path.join(BASE_DIR, MODEL_DIR,'tokenizer'))
+    
+    print("Model and tokenizer saved!")
+
+
         
 if __name__ == '__main__':
 
@@ -102,7 +129,7 @@ if __name__ == '__main__':
     # test run
     df_tweets = pd.read_csv(os.path.join(BASE_DIR, 'LLM-text-autocompletion','data', 'cleaned_tweets.csv'))
     # for test aim - only 100 samples
-    # df_tweets = df_tweets.sample(n=100, random_state=42).reset_index(drop=True)
+    df_tweets = df_tweets.sample(n=100, random_state=42).reset_index(drop=True)
     # print(df_tweets.tail(10))
     
     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
@@ -115,5 +142,5 @@ if __name__ == '__main__':
     model = LSTMAutocomplete(tokenizer.vocab_size)
     
     
-    train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=10, learning_rate=0.01, save_dir='models')
+    train_model(model, train_loader, val_loader, tokenizer, device, num_epochs=2, learning_rate=0.01, save_dir='models')
     

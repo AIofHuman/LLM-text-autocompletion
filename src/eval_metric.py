@@ -16,40 +16,6 @@ def id_tokens_to_text(tokenizer, tokens):
     words = tokenizer.decode(tokens, skip_special_tokens=True)
     return ' '.join(words)
 
-# def generate_completion(model, vocab, input_sequence, input_mask, target_length, device):
-        
-#         """Generate completion for the input sequence"""
-#         model.eval()
-#         generated_tokens = []
-        
-#         with torch.no_grad():
-#             # Prepare initial input
-#             current_input = torch.tensor(input_sequence, device=device).unsqueeze(0)
-#             current_mask = torch.tensor(input_mask, device=device).unsqueeze(0) if input_mask is not None else None
-#             hidden = None
-            
-#             for _ in range(target_length):
-#                 # Forward pass
-#                 output, hidden = model(current_input, current_mask, hidden)
-                
-#                 # Get next token (greedy decoding)
-#                 next_token = torch.argmax(output, dim=-1)
-#                 next_token_id = next_token.item()
-                
-#                 # Stop if EOS token
-#                 if next_token_id == vocab.get('<EOS>', 3):
-#                     break
-                
-#                 # Add to generated tokens (skip special tokens)
-#                 if next_token_id not in [vocab.get('<PAD>', 0), vocab.get('<SOS>', 2)]:
-#                     generated_tokens.append(next_token_id)
-                
-#                 # Update input for next step
-#                 current_input = next_token.unsqueeze(0).unsqueeze(0)
-#                 current_mask = torch.ones_like(current_input)
-        
-#         return id_tokens_to_text(vocab, generated_tokens)
-
 def rouge1_2(predictions, references):
     if len(predictions) == 0 or len(references) == 0:
         return 0, 0
@@ -62,11 +28,11 @@ def rouge1_2(predictions, references):
     )
     return result['rouge1'], result['rouge2']
           
-def calc_metrics(model, loader, criterion, tokenizer, device):
+def calc_metrics(model, loader, tokenizer,  device="cpu", criterion=None):
     model.eval()
-    loss = 0
-    rouge1 = 0
-    rouge2 = 0
+    loss = 0.0
+    rouge1 = 0.0
+    rouge2 = 0.0
 
     val_pbar = tqdm(loader, desc=f'Calc metrics...')
 
@@ -82,7 +48,8 @@ def calc_metrics(model, loader, criterion, tokenizer, device):
         # masks = masks.squeeze()
         # predict = predicts.squeeze()
 
-        b_loss = criterion(predicts, targets[:,0])
+        if criterion == None:
+            b_loss = criterion(predicts, targets[:,0])
         
         pred_idxs = model.generate_completion(tokenizer, input_ids, max_target_length=MAX_LEN)
 
