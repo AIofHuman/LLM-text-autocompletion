@@ -129,6 +129,7 @@ celerybeat.pid
 
 #data
 data/
+models/
 
 # Environments
 .env
